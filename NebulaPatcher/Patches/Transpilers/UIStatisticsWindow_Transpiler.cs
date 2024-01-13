@@ -108,6 +108,53 @@ public static class UIStatisticsWindow_Transpiler
     }
 
     [HarmonyTranspiler]
+    [HarmonyPatch(nameof(UIStatisticsWindow.ComputeDisplayKillEntries))]
+    private static IEnumerable<CodeInstruction> ComputeDisplayKillEntries_Transpiler(IEnumerable<CodeInstruction> instructions)
+    {
+        //Change: this.gameData.factoryCount
+        //To:     GetFactoryCount()
+        //Change: planetData.astroId
+        //To:     GetAstroId(planetData)
+        //Change: if (starData.planets[j].factory != null)
+        //To:     if (GetFactoryIndex(starData.planets[j]) != -1)
+        var codeInstructions = instructions as CodeInstruction[] ?? instructions.ToArray();
+        try
+        {
+            instructions = ReplaceFactoryCount(codeInstructions);
+            instructions = new CodeMatcher(instructions)
+                .MatchForward(false,
+                    new CodeMatch(i => i.opcode == OpCodes.Callvirt && ((MethodInfo)i.operand).Name == "get_astroId")
+                )
+                .Repeat(matcher => matcher
+                    .SetAndAdvance(OpCodes.Call,
+                        AccessTools.Method(typeof(UIStatisticsWindow_Transpiler), nameof(GetAstroId)))
+                )
+                .InstructionEnumeration();
+
+
+            return new CodeMatcher(instructions)
+                .MatchForward(false,
+                    new CodeMatch(OpCodes.Ldfld, AccessTools.Field(typeof(StarData), nameof(StarData.planets))),
+                    new CodeMatch(OpCodes.Brfalse)
+                )
+                .SetAndAdvance(OpCodes.Call, AccessTools.Method(typeof(UIStatisticsWindow_Transpiler), nameof(GetAstroId)))
+                .InsertAndAdvance(new CodeInstruction(OpCodes.Ldc_I4_M1))
+                .SetOpcodeAndAdvance(OpCodes.Beq_S)
+                .InstructionEnumeration();
+
+            //return instructions;
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"ComputeDisplayKillEntries_Transpiler failed. Mod version not compatible with game version. {ex.Message} {ex.StackTrace}");
+
+            return codeInstructions;
+        }
+    }
+//    IL_004d: callvirt instance class PlanetData PlanetFactory::get_planet() /* 060014C8 */
+//IL_0052: callvirt instance int32 PlanetData::get_astroId() /* 0600149C */
+
+    [HarmonyTranspiler]
     [HarmonyPatch(nameof(UIStatisticsWindow.ComputePowerTab))]
     private static IEnumerable<CodeInstruction> ComputePowerTab_Transpiler(IEnumerable<CodeInstruction> instructions,
         ILGenerator iLGenerator)
@@ -200,6 +247,22 @@ public static class UIStatisticsWindow_Transpiler
             .InstructionEnumeration();
     }
 
+    private static IEnumerable<CodeInstruction> ReplaceKillCount(IEnumerable<CodeInstruction> instructions)
+    {
+        return new CodeMatcher(instructions)
+            .MatchForward(false,
+                new CodeMatch(OpCodes.Ldarg_0),
+                new CodeMatch(OpCodes.Ldfld,
+                    AccessTools.Field(typeof(UIStatisticsWindow), nameof(UIStatisticsWindow.gameData))),
+                new CodeMatch(OpCodes.Ldfld, AccessTools.Field(typeof(GameData), nameof(GameData.factoryCount)))
+            )
+            .Repeat(matcher => matcher
+                .SetAndAdvance(OpCodes.Call, AccessTools.Method(typeof(UIStatisticsWindow_Transpiler), nameof(GetFactoryCount)))
+                .RemoveInstructions(2)
+            )
+            .InstructionEnumeration();
+    }
+
     private static int GetFactoryCount()
     {
         if (!Multiplayer.IsActive || Multiplayer.Session.LocalPlayer.IsHost)
@@ -225,5 +288,17 @@ public static class UIStatisticsWindow_Transpiler
             return planet.factoryIndex;
         }
         return Multiplayer.Session.Statistics.GetFactoryIndex(planet);
+    }
+
+    private static int GetAstroId(PlanetData planet)
+    {
+        Log.Error($"Getting Astro Id");
+
+        if (!Multiplayer.IsActive || Multiplayer.Session.LocalPlayer.IsHost)
+        {
+            return planet.astroId;
+        }
+
+        return Multiplayer.Session.Statistics.GetAstroId(planet);
     }
 }

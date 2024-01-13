@@ -15,15 +15,23 @@ public class StatisticalSnapShot
     public readonly long[] PowerChargingRegister;
     public readonly long[] PowerConsumptionRegister;
     public readonly long[] PowerDischargingRegister;
-
     public readonly long[] PowerGenerationRegister;
+    public readonly long[] KillRegister;
 
     //List of statistical changes for each planet that happened in one gameTick
     public readonly List<ProductionChangeStruct>[] ProductionChangesPerFactory;
 
+    public readonly List<KillChangeStruct>[] KillChangesPerFactory;
+
+
     public StatisticalSnapShot(long gameTick, int numOfActiveFactories)
     {
         ProductionChangesPerFactory = new List<ProductionChangeStruct>[numOfActiveFactories];
+        for (var i = 0; i < numOfActiveFactories; i++)
+        {
+            ProductionChangesPerFactory[i] = [];
+        }
+        KillChangesPerFactory = new List<KillChangeStruct>[numOfActiveFactories];
         for (var i = 0; i < numOfActiveFactories; i++)
         {
             ProductionChangesPerFactory[i] = [];
@@ -34,6 +42,7 @@ public class StatisticalSnapShot
         PowerDischargingRegister = new long[numOfActiveFactories];
         HashRegister = new long[numOfActiveFactories];
         EnergyStored = new long[numOfActiveFactories];
+        KillRegister = new long[numOfActiveFactories];
         CapturedGameTick = gameTick;
     }
 
@@ -43,6 +52,7 @@ public class StatisticalSnapShot
         var factoryCount = br.ReadInt32();
 
         ProductionChangesPerFactory = new List<ProductionChangeStruct>[factoryCount];
+        KillChangesPerFactory = new List<KillChangeStruct>[factoryCount];
         PowerGenerationRegister = new long[factoryCount];
         PowerConsumptionRegister = new long[factoryCount];
         PowerChargingRegister = new long[factoryCount];
@@ -53,10 +63,12 @@ public class StatisticalSnapShot
         for (var factoryId = 0; factoryId < factoryCount; factoryId++)
         {
             ProductionChangesPerFactory[factoryId] = [];
+            KillChangesPerFactory[factoryId] = [];
             var changesCount = br.ReadInt32();
             for (var changeId = 0; changeId < changesCount; changeId++)
             {
                 ProductionChangesPerFactory[factoryId].Add(new ProductionChangeStruct(br));
+                KillChangesPerFactory[factoryId].Add(new KillChangeStruct(br));
             }
             PowerGenerationRegister[factoryId] = br.ReadInt64();
             PowerConsumptionRegister[factoryId] = br.ReadInt64();
@@ -71,7 +83,7 @@ public class StatisticalSnapShot
     {
         bw.Write(CapturedGameTick);
 
-        //Collect production/consumption statistics from factories
+        //Collect production/consumption/kill statistics from factories
         bw.Write(ProductionChangesPerFactory.Length);
         for (var factoryId = 0; factoryId < ProductionChangesPerFactory.Length; factoryId++)
         {
@@ -79,8 +91,8 @@ public class StatisticalSnapShot
             for (var changeId = 0; changeId < ProductionChangesPerFactory[factoryId].Count; changeId++)
             {
                 ProductionChangesPerFactory[factoryId][changeId].Export(bw);
+                KillChangesPerFactory[factoryId][changeId].Export(bw);
             }
-
             //Collect info about power system of the factory
             bw.Write(PowerGenerationRegister[factoryId]);
             bw.Write(PowerConsumptionRegister[factoryId]);
@@ -106,6 +118,23 @@ public class StatisticalSnapShot
         {
             w.Write(IsProduction);
             w.Write(ProductId);
+            w.Write(Amount);
+        }
+    }
+
+    public readonly struct KillChangeStruct //6 bytes total
+    (ushort killId, int amount)
+    {
+        public readonly ushort killId = killId; //2-byte
+        public readonly int Amount = amount; //4-byte
+
+        public KillChangeStruct(BinaryReader r) : this(r.ReadUInt16(), r.ReadInt32())
+        {
+        }
+
+        public void Export(BinaryWriter w)
+        {
+            w.Write(killId);
             w.Write(Amount);
         }
     }

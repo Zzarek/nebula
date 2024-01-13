@@ -98,6 +98,13 @@ internal class GameData_Patch
                 GameMain.statistics.production.factoryStatPool[factoryIndex].Init();
                 //Skip the part of setting firstCreateIds
             }
+
+            // Initial KillStat for other in-game stats checking functions
+            if (GameMain.statistics.kill.factoryKillStatPool[factoryIndex] == null)
+            {
+                GameMain.statistics.kill.factoryKillStatPool[factoryIndex] = new AstroKillStat();
+                GameMain.statistics.kill.factoryKillStatPool[factoryIndex].Init();
+            }
         }
 
         // Assign the factory to the result

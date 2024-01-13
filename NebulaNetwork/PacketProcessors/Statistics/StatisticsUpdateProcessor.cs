@@ -22,6 +22,7 @@ internal class StatisticsUpdateProcessor : PacketProcessor<StatisticUpdateDataPa
             using var reader = new BinaryUtils.Reader(packet.StatisticsBinaryData);
             var itemChanged = false;
             ref var productionStats = ref GameMain.statistics.production.factoryStatPool;
+            ref var killStats = ref GameMain.statistics.kill.factoryKillStatPool;
             var numOfSnapshots = reader.BinaryReader.ReadInt32();
             for (var i = 0; i < numOfSnapshots; i++)
             {
@@ -51,6 +52,24 @@ internal class StatisticsUpdateProcessor : PacketProcessor<StatisticUpdateDataPa
                                 productionChange.Amount;
                         }
                     }
+
+                    if (killStats[factoryId] == null)
+                    {
+                        killStats[factoryId] = new AstroKillStat();
+                        killStats[factoryId].Init();
+                    }
+                    //Clear current statistical data
+                    killStats[factoryId].PrepareTick();
+
+                    for (var changeId = 0; changeId < snapshot.KillChangesPerFactory[factoryId].Count; changeId++)
+                    {
+                        var killChange = snapshot.KillChangesPerFactory[factoryId][changeId];
+
+                        killStats[factoryId].killRegister[killChange.killId] +=
+                               killChange.Amount;
+                    }
+
+
                     //Import power system statistics
                     productionStats[factoryId].powerGenRegister = snapshot.PowerGenerationRegister[factoryId];
                     productionStats[factoryId].powerConRegister = snapshot.PowerConsumptionRegister[factoryId];
@@ -66,6 +85,7 @@ internal class StatisticsUpdateProcessor : PacketProcessor<StatisticUpdateDataPa
                     //Process changed registers. FactoryProductionStat.AfterTick() is empty currently so we ignore it.
                     productionStats[factoryId].GameTick(snapshot.CapturedGameTick);
                     itemChanged |= productionStats[factoryId].itemChanged;
+
                 }
             }
             //Trigger GameMain.statistics.production.onItemChange() event when itemChanged is true

@@ -74,6 +74,18 @@ public class StatisticsManager : IDisposable
                 }
             }
 
+
+            //Collect Kill statistics
+            var killStat = GameMain.statistics.kill.factoryKillStatPool[i];
+            for (ushort j = 0; j < killStat.killRegister.Length; j++)
+            {
+                if (killStat.killRegister[j] != 0)
+                {
+                    snapshot.KillChangesPerFactory[i]
+                        .Add(new StatisticalSnapShot.KillChangeStruct(j, killStat.killRegister[j]));
+                }
+            }
+
             //Collect Power statistics
             snapshot.PowerGenerationRegister[i] = stat.powerGenRegister;
             snapshot.PowerConsumptionRegister[i] = stat.powerConRegister;
@@ -88,6 +100,7 @@ public class StatisticsManager : IDisposable
 
             //Collect Research statistics
             snapshot.HashRegister[i] = stat.hashRegister;
+
         }
         statisticalSnapShots.Add(snapshot);
     }
@@ -253,6 +266,14 @@ public class StatisticsManager : IDisposable
             return factoryIndex;
         }
         return -1;
+    }
+
+    public int GetAstroId(PlanetData planet)
+    {
+        var factoryIndex = GetFactoryIndex(planet);
+        if (factoryIndex == -1)
+            return -1;
+        return GetPlanetData(factoryIndex).astroId;
     }
 
     public long UpdateTotalChargedEnergy(int factoryIndex)
